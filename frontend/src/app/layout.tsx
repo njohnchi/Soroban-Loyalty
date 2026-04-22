@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/dashboard">Dashboard</a>
               <a href="/merchant">Merchant</a>
               <a href="/analytics">Analytics</a>
+              <a href="/transactions">Transactions</a>
             </nav>
             <WalletConnector />
           </header>
