@@ -117,3 +117,29 @@ body {
 }
 .stat-value { font-size: 2rem; font-weight: 700; color: #7c6af7; }
 .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+
+/* ── Language Switcher ────────────────────────────────────────────────────── */
+.language-switcher {
+  background: #2d3148;
+  color: #e2e8f0;
+  border: 1px solid #4a5568;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.language-switcher:hover:not(:disabled) {
+  background: #3a3f5c;
+}
+
+.language-switcher:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.language-switcher:focus {
+  outline: none;
+  border-color: #7c6af7;
+}
