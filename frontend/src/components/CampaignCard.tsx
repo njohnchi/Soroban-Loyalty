@@ -16,6 +16,21 @@ export function CampaignCard({ campaign, onClaim, claiming }: Props) {
   const status = t(`campaigns.status.${statusKey}`);
   const canClaim = campaign.active && !expired;
 
+  const secondsLeft = campaign.expiration - now;
+  const daysLeft = Math.floor(secondsLeft / 86400);
+  const hoursLeft = Math.floor((secondsLeft % 86400) / 3600);
+
+  let urgency: "low" | "medium" | "high" | "expired" = "low";
+  if (expired) urgency = "expired";
+  else if (daysLeft < 1) urgency = "high";
+  else if (daysLeft < 3) urgency = "medium";
+
+  const expiryText = expired
+    ? "Expired"
+    : daysLeft > 0
+    ? `${daysLeft}d ${hoursLeft}h left`
+    : `${hoursLeft}h left`;
+
   return (
     <div className="card">
       <div className="card-header">
