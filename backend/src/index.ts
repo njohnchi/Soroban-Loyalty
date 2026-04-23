@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { campaignRouter } from "./routes/campaign.routes";
 import { rewardRouter } from "./routes/reward.routes";
 import { startIndexer } from "./indexer/indexer";
+import { initDb } from "./db";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ const PORT = process.env.PORT ?? 3001;
 
 app.listen(PORT, async () => {
   console.log(`[server] listening on port ${PORT}`);
+  await initDb();
   if (process.env.ENABLE_INDEXER !== "false") {
     await startIndexer();
   }

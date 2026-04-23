@@ -101,13 +101,17 @@ All variables are read from `.env` at the repo root (or from the process environ
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | ✅ | — | PostgreSQL connection string, e.g. `postgres://user:pass@localhost:5432/soroban_loyalty` |
+| `DATABASE_URL` | ✅* | — | PostgreSQL connection string, e.g. `postgres://user:pass@localhost:5432/soroban_loyalty`. Ignored when `DB_SECRET_ARN` is set. |
+| `DB_SECRET_ARN` | ❌ | — | ARN (or name) of the AWS Secrets Manager secret containing DB credentials. When set, overrides `DATABASE_URL` and enables zero-downtime rotation. |
+| `AWS_REGION` | ❌ | `us-east-1` | AWS region for Secrets Manager. Required when `DB_SECRET_ARN` is set. |
 | `SOROBAN_RPC_URL` | ✅ | `http://localhost:8000/soroban/rpc` | Soroban RPC endpoint |
 | `NETWORK_PASSPHRASE` | ✅ | Testnet passphrase | Stellar network passphrase |
 | `REWARDS_CONTRACT_ID` | ✅ | — | Deployed rewards contract ID |
 | `CAMPAIGN_CONTRACT_ID` | ✅ | — | Deployed campaign contract ID |
 | `PORT` | ❌ | `3001` | HTTP port the server listens on |
 | `ENABLE_INDEXER` | ❌ | `true` | Set to `false` to run the API without the event indexer |
+
+> \* `DATABASE_URL` is required when `DB_SECRET_ARN` is not set.
 
 ---
 
@@ -280,6 +284,30 @@ Set `ENABLE_INDEXER=false` to run the API without polling (useful for read-only 
 
 ```bash
 ENABLE_INDEXER=false npm run dev
+```
+
+---
+
+## Credential Rotation (Zero-Downtime)
+
+When `DB_SECRET_ARN` is set, `db.ts` fetches credentials from AWS Secrets Manager at startup and retries with fresh credentials automatically on any PostgreSQL authentication error (codes `28P01` / `28000`) — no restart required.
+
+**Rotation schedule:** every 90 days via AWS Secrets Manager automatic rotation (configured in `infra/secrets-rotation/`).
+
+**Overlap period:** the old pool is drained after 1 hour, matching the overlap window during which old credentials remain valid.
+
+**Audit log:** every rotation and auth-error retry emits a structured JSON log line:
+```json
+{ "audit": true, "event": "credential_rotation", "detail": "...", "ts": "..." }
+```
+These are captured by CloudWatch Logs and trigger an SNS email alert (see `infra/secrets-rotation/main.tf`).
+
+**Setup:**
+```bash
+cd infra/secrets-rotation
+cp terraform.tfvars.example terraform.tfvars  # fill in your values
+terraform init && terraform apply
+# Copy the output secret_arn into your environment as DB_SECRET_ARN
 ```
 
 ---
