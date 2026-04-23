@@ -6,12 +6,13 @@ interface Props {
   campaign: Campaign;
   onClaim?: (id: number) => void;
   claiming?: boolean;
+  optimisticClaimed?: boolean;
 }
 
-export function CampaignCard({ campaign, onClaim, claiming }: Props) {
+export function CampaignCard({ campaign, onClaim, claiming, optimisticClaimed }: Props) {
   const expired = Date.now() / 1000 > campaign.expiration;
   const status = !campaign.active ? "Inactive" : expired ? "Expired" : "Active";
-  const canClaim = campaign.active && !expired;
+  const canClaim = campaign.active && !expired && !optimisticClaimed;
 
   return (
     <div className="card">
@@ -46,7 +47,7 @@ export function CampaignCard({ campaign, onClaim, claiming }: Props) {
             disabled={!canClaim || claiming}
             className="btn btn-primary"
           >
-            {claiming ? "Claiming…" : "Claim Reward"}
+            {optimisticClaimed ? "Claimed ✓" : claiming ? "Claiming…" : "Claim Reward"}
           </button>
         </div>
       )}

@@ -13,6 +13,8 @@ export default function DashboardPage() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [claimingId, setClaimingId] = useState<number | null>(null);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  // Optimistic: set of campaign IDs the user has claimed this session
+  const [optimisticClaimed, setOptimisticClaimed] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -26,14 +28,24 @@ export default function DashboardPage() {
 
   const handleClaim = async (campaignId: number) => {
     if (!publicKey) return setMessage({ type: "error", text: "Connect your wallet first" });
-    setClaimingId(campaignId);
     setMessage(null);
+
+    // Optimistic update: mark as claimed immediately
+    setOptimisticClaimed((prev) => new Set(prev).add(campaignId));
+    setClaimingId(campaignId);
+
     try {
       await claimReward(publicKey, campaignId);
       setMessage({ type: "success", text: `Reward claimed for campaign #${campaignId}!` });
       const r = await api.getUserRewards(publicKey);
       setRewards(r.rewards);
     } catch (err: unknown) {
+      // Rollback optimistic update on failure
+      setOptimisticClaimed((prev) => {
+        const next = new Set(prev);
+        next.delete(campaignId);
+        return next;
+      });
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Claim failed" });
     } finally {
       setClaimingId(null);
@@ -80,6 +92,7 @@ export default function DashboardPage() {
                 campaign={c}
                 onClaim={handleClaim}
                 claiming={claimingId === c.id}
+                optimisticClaimed={optimisticClaimed.has(c.id)}
               />
             ))}
           </div>
