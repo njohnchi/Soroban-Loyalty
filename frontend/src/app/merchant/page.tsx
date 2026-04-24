@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { api, Campaign } from "@/lib/api";
 import { createCampaign } from "@/lib/soroban";
-import { CampaignCard } from "@/components/CampaignCard";
+import { CampaignTable } from "@/components/CampaignTable";
 
 export default function MerchantPage() {
   const { publicKey } = useWallet();
@@ -16,16 +16,10 @@ export default function MerchantPage() {
 
   const loadCampaigns = async () => {
     const r = await api.getCampaigns();
-    if (publicKey) {
-      setCampaigns(r.campaigns.filter((c) => c.merchant === publicKey));
-    } else {
-      setCampaigns(r.campaigns);
-    }
+    setCampaigns(publicKey ? r.campaigns.filter((c) => c.merchant === publicKey) : r.campaigns);
   };
 
-  useEffect(() => {
-    loadCampaigns().catch(console.error);
-  }, [publicKey]);
+  useEffect(() => { loadCampaigns().catch(console.error); }, [publicKey]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +42,11 @@ export default function MerchantPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Deactivate is a local optimistic update (no backend endpoint yet)
+  const handleDeactivate = async (id: number) => {
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, active: false } : c)));
   };
 
   return (
@@ -93,15 +92,7 @@ export default function MerchantPage() {
 
       <section>
         <h2 className="section-title">My Campaigns</h2>
-        {campaigns.length === 0 ? (
-          <p className="empty-state">No campaigns yet.</p>
-        ) : (
-          <div className="grid">
-            {campaigns.map((c) => (
-              <CampaignCard key={c.id} campaign={c} />
-            ))}
-          </div>
-        )}
+        <CampaignTable campaigns={campaigns} onDeactivate={handleDeactivate} />
       </section>
     </div>
   );
