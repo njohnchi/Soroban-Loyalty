@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 import { api, Campaign } from "@/lib/api";
 import { createCampaign } from "@/lib/soroban";
-import { CampaignCard } from "@/components/CampaignCard";
-import { SortableCampaignList } from "@/components/SortableCampaignList";
+import { CampaignTable } from "@/components/CampaignTable";
 
 export default function MerchantPage() {
   const { publicKey } = useWallet();
@@ -25,9 +24,7 @@ export default function MerchantPage() {
     }
   };
 
-  useEffect(() => {
-    loadCampaigns().catch(console.error);
-  }, [publicKey]);
+  useEffect(() => { loadCampaigns().catch(console.error); }, [publicKey]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +49,11 @@ export default function MerchantPage() {
     }
   };
 
+  // Deactivate is a local optimistic update (no backend endpoint yet)
+  const handleDeactivate = async (id: number) => {
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, active: false } : c)));
+  };
+
   return (
     <div>
       <h1 className="page-title">Merchant Portal</h1>
@@ -66,7 +68,7 @@ export default function MerchantPage() {
         <h2 className="section-title">Create Campaign</h2>
         <form onSubmit={handleCreate}>
           <div className="form-group">
-            <label>Reward Amount (LYT)</label>
+            <label>Reward Amount (LYT) <HelpIcon faqId="what-is-lyt" label="What is LYT?" /></label>
             <input
               type="number"
               min="1"
@@ -95,14 +97,7 @@ export default function MerchantPage() {
 
       <section>
         <h2 className="section-title">My Campaigns</h2>
-        <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: 12 }}>
-          Drag rows to reorder how campaigns appear in the public listing.
-        </p>
-        {campaigns.length === 0 ? (
-          <p className="empty-state">No campaigns yet.</p>
-        ) : (
-          <SortableCampaignList initialCampaigns={campaigns} />
-        )}
+        <CampaignTable campaigns={campaigns} onDeactivate={handleDeactivate} />
       </section>
     </div>
   );

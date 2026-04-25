@@ -31,15 +31,20 @@ export interface Reward {
   claimed_at: string;
 }
 
+export interface AnalyticsData {
+  totalClaims: number;
+  totalLYT: number;
+  redemptionRate: number;
+  claimsPerCampaign: { name: string; claims: number }[];
+  claimsOverTime: { date: string; claims: number }[];
+}
+
 export const api = {
   getCampaigns: (limit = 20, offset = 0) =>
     apiFetch<{ campaigns: Campaign[]; total: number }>(`/campaigns?limit=${limit}&offset=${offset}`),
   getCampaign: (id: number) => apiFetch<{ campaign: Campaign }>(`/campaigns/${id}`),
   getUserRewards: (address: string) =>
     apiFetch<{ rewards: Reward[] }>(`/user/${address}/rewards`),
-  reorderCampaigns: (order: number[]) =>
-    apiFetch<{ ok: boolean }>("/campaigns/reorder", {
-      method: "PATCH",
-      body: JSON.stringify({ order }),
-    }),
+  getAnalytics: (days: number) =>
+    apiFetch<AnalyticsData>(`/analytics?days=${days}`),
 };

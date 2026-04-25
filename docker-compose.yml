@@ -18,6 +18,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    # Resource limits: postgres is the most resource-intensive service
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   soroban-local:
     image: stellar/quickstart:latest
@@ -35,6 +44,15 @@ services:
       timeout: 10s
       retries: 20
       start_period: 30s
+    # Resource limits: local Stellar node — moderate usage
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
 
   backend:
     build:
@@ -61,6 +79,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    # Resource limits: backend + indexer — 512MB cap prevents indexer memory leaks
+    # from consuming host resources. OOM kills will appear in `docker inspect` State.OOMKilled.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
 
   frontend:
     build:
@@ -78,6 +106,60 @@ services:
       NEXT_PUBLIC_CAMPAIGN_CONTRACT_ID: ${CAMPAIGN_CONTRACT_ID:-}
     ports:
       - "3000:3000"
+    # Resource limits: Next.js SSR — 256MB is sufficient for static/SSR pages
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    ports:
+      - "9093:9093"
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3002:3000"
 
 volumes:
   postgres_data:
+  grafana_data:
+  prometheus_data:
