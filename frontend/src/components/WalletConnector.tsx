@@ -3,7 +3,12 @@
 import { useWallet } from "@/context/WalletContext";
 
 export function WalletConnector() {
-  const { publicKey, connecting, connect, disconnect } = useWallet();
+  const { publicKey, connecting, mounted, connect, disconnect } = useWallet();
+
+  // Render a stable placeholder until client has mounted to avoid hydration mismatch
+  if (!mounted) {
+    return <button className="btn btn-primary" disabled>Connect Freighter</button>;
+  }
 
   if (publicKey) {
     return (
