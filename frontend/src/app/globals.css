@@ -65,6 +65,41 @@ body {
   transition: background 0.2s, color 0.2s;
 }
 
+/* ── Keyboard / Focus ─────────────────────────────────────────────────────── */
+/* Remove default outline only when using mouse; keep for keyboard */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid #7c6af7;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip-to-content link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: #7c6af7;
+  color: #fff;
+  border-radius: 0 0 8px 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.1s;
+}
+.skip-link:focus-visible { top: 0; outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Nav links */
+.site-header nav a:focus-visible { outline: 2px solid #7c6af7; outline-offset: 3px; border-radius: 4px; }
+
+/* Buttons */
+.btn:focus-visible { outline: 2px solid #7c6af7; outline-offset: 2px; border-radius: 8px; }
+
+/* Logo */
+.logo:focus-visible { outline: 2px solid #7c6af7; outline-offset: 3px; border-radius: 4px; }
+
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 .site-header {
   display: flex;
