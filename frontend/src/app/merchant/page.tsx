@@ -5,6 +5,7 @@ import { useWallet } from "@/context/WalletContext";
 import { api, Campaign } from "@/lib/api";
 import { createCampaign } from "@/lib/soroban";
 import { CampaignCard } from "@/components/CampaignCard";
+import { EmptyState } from "@/components/EmptyState";
 
 export default function MerchantPage() {
   const { publicKey } = useWallet();
@@ -95,7 +96,12 @@ export default function MerchantPage() {
       <section>
         <h2 className="section-title">My Campaigns</h2>
         {campaigns.length === 0 ? (
-          <p className="empty-state">No campaigns yet.</p>
+          <EmptyState
+            illustration="campaigns"
+            title="No campaigns yet."
+            description="Create your first campaign above to start rewarding customers with LYT tokens."
+            cta={{ label: "Browse campaigns", href: "/dashboard" }}
+          />
         ) : (
           <div className="grid">
             {campaigns.map((c) => (

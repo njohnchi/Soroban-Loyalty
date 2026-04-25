@@ -9,6 +9,7 @@ import { CampaignCard } from "@/components/CampaignCard";
 import { RewardList } from "@/components/RewardList";
 import { NetworkBanner } from "@/components/NetworkBanner";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { EmptyState } from "@/components/EmptyState";
 
 const PAGE_SIZE = 20;
 
@@ -110,7 +111,12 @@ export default function DashboardPage() {
       <section>
         <h2 className="section-title">{t('campaigns.title')}</h2>
         {campaigns.length === 0 ? (
-          <p className="empty-state">{t('campaigns.noCampaigns')}</p>
+          <EmptyState
+            illustration="campaigns"
+            title={t('campaigns.noCampaigns')}
+            description="There are no active campaigns right now. Check back soon!"
+            cta={{ label: "Browse campaigns", href: "/merchant" }}
+          />
         ) : (
           <div className="grid">
             {campaigns.map((c) => (
