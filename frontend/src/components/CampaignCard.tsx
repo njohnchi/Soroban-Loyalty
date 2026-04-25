@@ -33,7 +33,8 @@ export function CampaignCard({ campaign, onClaim, claiming }: Props) {
     : `${hoursLeft}h left`;
 
   return (
-    <div className="card">
+    <div className="card" style={{ position: "relative" }}>
+      <Confetti active={!!justClaimed} />
       <div className="card-header">
         <span className="badge" data-status={statusKey}>
           {status}
