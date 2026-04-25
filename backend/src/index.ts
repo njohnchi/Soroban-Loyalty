@@ -1,13 +1,17 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { loadSecrets } from "./secrets";
 import { campaignRouter } from "./routes/campaign.routes";
 import { rewardRouter } from "./routes/reward.routes";
 import { startIndexer } from "./indexer/indexer";
 import { rpcServer } from "./soroban";
 import { pool } from "./db";
 
+// Load .env first (no-op in production where env vars are injected),
+// then fetch secrets from AWS Secrets Manager before any other init.
 dotenv.config();
+await loadSecrets();
 
 const app = express();
 app.use(cors());
