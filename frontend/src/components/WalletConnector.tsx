@@ -1,14 +1,60 @@
 "use client";
 
+import { useState } from "react";
 import { useWallet } from "@/context/WalletContext";
 
-export function WalletConnector() {
-  const { publicKey, connecting, mounted, connect, disconnect } = useWallet();
+function FreighterModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="freighter-modal-title">
+      <div className="modal">
+        <h2 id="freighter-modal-title">Freighter Wallet Required</h2>
+        <p>
+          Freighter is a browser extension that lets you sign Stellar transactions securely.
+          Install it to connect your wallet and interact with SorobanLoyalty.
+        </p>
+        <div className="modal-actions">
+          <a
+            href="https://chrome.google.com/webstore/detail/freighter/bcacfldlkkdogcmkkibnjlakofdplcbk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            Install for Chrome
+          </a>
+          <a
+            href="https://addons.mozilla.org/en-US/firefox/addon/freighter/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary"
+          >
+            Install for Firefox
+          </a>
+          <button onClick={onClose} className="btn btn-outline">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Render a stable placeholder until client has mounted to avoid hydration mismatch
-  if (!mounted) {
-    return <button className="btn btn-primary" disabled>Connect Freighter</button>;
-  }
+export function WalletConnector() {
+  const { publicKey, connecting, connect, disconnect } = useWallet();
+  const [showModal, setShowModal] = useState(false);
+
+  const handleConnect = async () => {
+    // Detect Freighter: the extension injects window.freighter
+    const hasFreighter =
+      typeof window !== "undefined" &&
+      // @ts-expect-error freighter is injected by the extension
+      (typeof window.freighter !== "undefined" || typeof window.freighterApi !== "undefined");
+
+    if (!hasFreighter) {
+      setShowModal(true);
+      return;
+    }
+    await connect();
+  };
 
   if (publicKey) {
     return (
@@ -24,8 +70,11 @@ export function WalletConnector() {
   }
 
   return (
-    <button onClick={connect} disabled={connecting} className="btn btn-primary">
-      {connecting ? "Connecting…" : "Connect Freighter"}
-    </button>
+    <>
+      <button onClick={handleConnect} disabled={connecting} className="btn btn-primary">
+        {connecting ? "Connecting…" : "Connect Freighter"}
+      </button>
+      {showModal && <FreighterModal onClose={() => setShowModal(false)} />}
+    </>
   );
 }
