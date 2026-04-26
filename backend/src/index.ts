@@ -5,6 +5,7 @@ import { loadSecrets } from "./secrets";
 import { campaignRouter } from "./routes/campaign.routes";
 import { rewardRouter } from "./routes/reward.routes";
 import { analyticsRouter } from "./routes/analytics.routes";
+import { transactionRouter } from "./routes/transaction.routes";
 import { startIndexer } from "./indexer/indexer";
 import { rpcServer } from "./soroban";
 import { pool } from "./db";
@@ -85,6 +86,7 @@ app.get("/health", async (_req, res) => {
 app.use("/campaigns", campaignRouter);
 app.use("/", rewardRouter);
 app.use("/analytics", analyticsRouter);
+app.use("/", transactionRouter);
 
 // Global error handler — logs + alerts on unhandled errors
 app.use(errorAlertMiddleware);
