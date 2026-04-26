@@ -1,3 +1,11 @@
+# [1.1.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.0.0...v1.1.0) (2026-04-26)
+
+
+### Features
+
+* all issue resolved ([2368df9](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/2368df90ed71cdca137930226f70a03670bf377e))
+* all issue resolved ([4987aeb](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/4987aeb74c407cf9c196dd6297b63b84189c8ef6))
+
 # 1.0.0 (2026-04-26)
 
 
