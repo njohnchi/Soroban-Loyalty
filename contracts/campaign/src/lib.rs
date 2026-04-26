@@ -13,6 +13,7 @@ pub struct Campaign {
     pub merchant: Address,
     pub reward_amount: i128,
     pub expiration: u64, // Unix timestamp (seconds)
+    pub created_at: u64, // Unix timestamp (seconds)
     pub active: bool,
     pub total_claimed: u64,
 }
@@ -83,6 +84,7 @@ impl CampaignContract {
             merchant: merchant.clone(),
             reward_amount,
             expiration,
+            created_at: env.ledger().timestamp(),
             active: true,
             total_claimed: 0,
         };
