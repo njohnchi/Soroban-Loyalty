@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { TransactionProgress } from "@/components/TransactionProgress";
+import { useTxProgress } from "@/hooks/useTxProgress";
 
 interface Props {
   balance: number;
@@ -10,24 +12,29 @@ interface Props {
 export function RedeemForm({ balance, onRedeem }: Props) {
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<"input" | "confirm">("input");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { steps, open, run, reset } = useTxProgress();
 
   const parsed = parseFloat(amount);
   const isValid = !isNaN(parsed) && parsed > 0 && parsed <= balance;
 
   const handleConfirm = async () => {
-    setLoading(true);
     setError(null);
     try {
-      await onRedeem(parsed);
+      await run(async (setTxStep) => {
+        setTxStep("signing");
+        // onRedeem handles sign → submit → confirm internally;
+        // we advance steps optimistically as the promise resolves
+        await onRedeem(parsed);
+        setTxStep("submitting");
+        setTxStep("confirming");
+      });
       setAmount("");
       setStep("input");
+      setTimeout(reset, 1500);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Redeem failed");
       setStep("input");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -42,6 +49,12 @@ export function RedeemForm({ balance, onRedeem }: Props) {
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
+
+        {open && (
+          <div style={{ marginBottom: 16 }}>
+            <TransactionProgress steps={steps} onRetry={reset} />
+          </div>
+        )}
 
         {step === "input" ? (
           <>
@@ -81,7 +94,7 @@ export function RedeemForm({ balance, onRedeem }: Props) {
               <button
                 className="btn btn-outline"
                 onClick={() => setStep("input")}
-                disabled={loading}
+                disabled={open}
                 style={{ flex: 1 }}
               >
                 Cancel
@@ -89,10 +102,10 @@ export function RedeemForm({ balance, onRedeem }: Props) {
               <button
                 className="btn btn-primary"
                 onClick={handleConfirm}
-                disabled={loading}
+                disabled={open}
                 style={{ flex: 1 }}
               >
-                {loading ? "Confirming…" : "Confirm & Burn"}
+                {open ? "Processing…" : "Confirm & Burn"}
               </button>
             </div>
           </div>

@@ -399,6 +399,109 @@ body {
 }
 
 
+/* ── Transaction Progress ─────────────────────────────────────────────────── */
+.tx-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tx-steps {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.tx-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  position: relative;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Connector line between steps */
+.tx-step + .tx-step::before {
+  content: "";
+  position: absolute;
+  left: -50%;
+  top: 14px;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+}
+
+.tx-step--done + .tx-step::before,
+.tx-step--active + .tx-step::before {
+  background: var(--accent);
+}
+
+.tx-step__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--bg-surface);
+  position: relative;
+  z-index: var(--z-raised);
+}
+
+.tx-step--active .tx-step__icon {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tx-step--done .tx-step__icon {
+  border-color: #4ade80;
+  background: #14532d;
+  color: #4ade80;
+}
+
+.tx-step--error .tx-step__icon {
+  border-color: #f87171;
+  background: #450a0a;
+  color: #f87171;
+}
+
+.tx-step--active .tx-step__label { color: var(--text-primary); font-weight: 600; }
+.tx-step--done  .tx-step__label  { color: #4ade80; }
+.tx-step--error .tx-step__label  { color: #f87171; }
+
+.tx-step__error {
+  font-size: 0.7rem;
+  color: #f87171;
+  text-align: center;
+  max-width: 80px;
+}
+
+.tx-step__num { color: var(--text-muted); font-size: 0.75rem; }
+
+.tx-retry { align-self: center; }
+
+/* Spinner for active step */
+.tx-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: tx-spin 0.7s linear infinite;
+}
+
+@keyframes tx-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Toast notifications ──────────────────────────────────────────────────── */
 .toast-container {
   position: fixed;
