@@ -5,6 +5,7 @@ import { I18nProvider } from "@/context/I18nContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WalletConnector } from "@/components/WalletConnector";
 import { NetworkStatusIndicator } from "@/components/NetworkStatusIndicator";
+import { MobileNav } from "@/components/MobileNav";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
@@ -26,7 +27,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     <>
       <header className="site-header">
         <a href="/" className="logo">SorobanLoyalty</a>
-        <nav>
+        <nav className="desktop-nav">
           <a href="/dashboard">Dashboard</a>
           <a href="/merchant">Merchant</a>
           <a href="/analytics">Analytics</a>
@@ -34,6 +35,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         </nav>
         <NetworkStatusIndicator health={health} />
         <WalletConnector />
+        <MobileNav />
       </header>
       <main className="site-main">{children}</main>
     </>
