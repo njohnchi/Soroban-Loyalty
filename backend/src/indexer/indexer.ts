@@ -56,7 +56,7 @@ function decodeU64(val: xdr.ScVal): number {
 async function processEvent(event: SorobanRpc.Api.RawEventResponse): Promise<void> {
   if (event.type !== "contract") return;
 
-  const topics = event.topic.map((t) => xdr.ScVal.fromXDR(t, "base64"));
+  const topics = event.topic.map((t: string) => xdr.ScVal.fromXDR(t, "base64"));
   const eventName = topics[0]?.sym() ?? "";
 
   if (event.contractId === CAMPAIGN_CONTRACT && eventName === "CAM_CRT") {
@@ -122,20 +122,21 @@ export async function startIndexer(): Promise<void> {
       });
 
       for (const event of result.events) {
-        await processEvent(event as SorobanRpc.Api.RawEventResponse);
+        await processEvent(event as unknown as SorobanRpc.Api.RawEventResponse);
         indexerEventsTotal.inc();
       }
 
       if (result.events.length > 0) {
-        const last = result.events[result.events.length - 1];
-        await saveCursor((last as SorobanRpc.Api.RawEventResponse).pagingToken);
+        const last = result.events[result.events.length - 1] as unknown as SorobanRpc.Api.RawEventResponse;
+        await saveCursor(last.pagingToken);
       }
 
       // Update lag metric: compare latest ledger to current chain tip
       try {
         const latestLedger = await rpcServer.getLatestLedger();
+        const last = result.events[result.events.length - 1] as unknown as SorobanRpc.Api.RawEventResponse;
         const cursorLedger = result.events.length > 0
-          ? Number((result.events[result.events.length - 1] as SorobanRpc.Api.RawEventResponse).ledger)
+          ? Number(last.ledger)
           : latestLedger.sequence;
         indexerLagBlocks.set(Math.max(0, latestLedger.sequence - cursorLedger));
       } catch {

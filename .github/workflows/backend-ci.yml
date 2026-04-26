@@ -58,10 +58,15 @@ jobs:
       - name: Run tests
         run: npm test -- --ci --coverage
 
-      - name: Upload test results
+      - name: Generate OpenAPI spec
+        run: npx ts-node scripts/generate-openapi.ts
+
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-coverage
-          path: backend/coverage/
+          name: backend-artifacts
+          path: |
+            backend/coverage/
+            backend/dist/openapi.json
           retention-days: 7
