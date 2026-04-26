@@ -1,14 +1,55 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { getCampaigns, getCampaignById, reorderCampaigns, saveCampaignImageMapping } from "../services/campaign.service";
-import multer from "multer";
-import { uploadImage } from "../lib/s3";
+import {
+  getCampaigns,
+  getCampaignById,
+  reorderCampaigns,
+  softDeleteCampaign,
+  restoreCampaign,
+} from "../services/campaign.service";
 
 export const campaignRouter = Router();
 
 /**
- * GET /campaigns
- * Returns a list of all campaigns stored in the database.
+ * @openapi
+ * /campaigns:
+ *   get:
+ *     summary: List all campaigns
+ *     description: Returns a paginated list of all campaigns stored in the database.
+ *     tags: [Campaigns]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Maximum number of campaigns to return.
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of campaigns to skip.
+ *     responses:
+ *       200:
+ *         description: A list of campaigns.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 campaigns:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Campaign'
+ *                 total:
+ *                   type: integer
+ *       500:
+ *         description: Server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 campaignRouter.get("/", async (req: Request, res: Response) => {
   try {
@@ -22,8 +63,35 @@ campaignRouter.get("/", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /campaigns/:id
- * Returns a single campaign by its ID.
+ * @openapi
+ * /campaigns/{id}:
+ *   get:
+ *     summary: Get campaign by ID
+ *     description: Returns a single campaign by its unique identifier.
+ *     tags: [Campaigns]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The campaign ID.
+ *     responses:
+ *       200:
+ *         description: Campaign details.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 campaign:
+ *                   $ref: '#/components/schemas/Campaign'
+ *       400:
+ *         description: Invalid ID.
+ *       404:
+ *         description: Campaign not found.
+ *       500:
+ *         description: Server error.
  */
 campaignRouter.get("/:id", async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
@@ -42,9 +110,39 @@ const ReorderSchema = z.object({
 });
 
 /**
- * PATCH /campaigns/reorder
- * Persists the display order of campaigns for a merchant.
- * Body: { order: number[] }  — array of campaign IDs in desired order
+ * @openapi
+ * /campaigns/reorder:
+ *   patch:
+ *     summary: Reorder campaigns
+ *     description: Persists the display order of campaigns for a merchant.
+ *     tags: [Campaigns]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - order
+ *             properties:
+ *               order:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Array of campaign IDs in the desired display order.
+ *     responses:
+ *       200:
+ *         description: Reorder successful.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean }
+ *       400:
+ *         description: Invalid request body.
+ *       500:
+ *         description: Server error.
  */
 campaignRouter.patch("/reorder", async (req: Request, res: Response) => {
   const parsed = ReorderSchema.safeParse(req.body);
@@ -57,41 +155,34 @@ campaignRouter.patch("/reorder", async (req: Request, res: Response) => {
   }
 });
 
-const upload = multer({
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/webp"];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Invalid file type. Only JPEG, PNG and WebP are allowed."));
-  }
-});
-
 /**
- * POST /campaigns/upload
- * Uploads an image to S3 and returns the URL.
+ * DELETE /campaigns/:id
+ * Soft-deletes a campaign by setting deleted_at.
  */
-campaignRouter.post("/upload", upload.single("image"), async (req: Request, res: Response) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+campaignRouter.delete("/:id", async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   try {
-    const imageUrl = await uploadImage(req.file.buffer, req.file.mimetype);
-    res.json({ imageUrl });
-  } catch (err) {
-    console.error("Upload failed:", err);
-    res.status(500).json({ error: "Upload failed" });
-  }
-});
-
-/**
- * POST /campaigns/map-image
- * Maps a transaction hash to an image URL.
- */
-campaignRouter.post("/map-image", async (req: Request, res: Response) => {
-  const { txHash, imageUrl } = req.body;
-  if (!txHash || !imageUrl) return res.status(400).json({ error: "txHash and imageUrl are required" });
-  try {
-    await saveCampaignImageMapping(txHash, imageUrl);
+    const deleted = await softDeleteCampaign(id);
+    if (!deleted) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: "Failed to map image" });
+    res.status(500).json({ error: "Failed to delete campaign" });
+  }
+});
+
+/**
+ * POST /campaigns/:id/restore
+ * Restores a soft-deleted campaign.
+ */
+campaignRouter.post("/:id/restore", async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const restored = await restoreCampaign(id);
+    if (!restored) return res.status(404).json({ error: "Not found or not deleted" });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to restore campaign" });
   }
 });
