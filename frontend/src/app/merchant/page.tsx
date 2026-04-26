@@ -5,12 +5,14 @@ import { useWallet } from "@/context/WalletContext";
 import { api, Campaign } from "@/lib/api";
 import { createCampaign } from "@/lib/soroban";
 import { CampaignTable } from "@/components/CampaignTable";
+import { ImageUpload } from "@/components/ImageUpload";
 
 export default function MerchantPage() {
   const { publicKey } = useWallet();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [rewardAmount, setRewardAmount] = useState("");
   const [expirationDays, setExpirationDays] = useState("30");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -38,9 +40,21 @@ export default function MerchantPage() {
     setSubmitting(true);
     setMessage(null);
     try {
-      await createCampaign(publicKey, BigInt(amount), expiration);
+      let imageUrl: string | undefined;
+      if (selectedFile) {
+        const uploadRes = await api.uploadCampaignImage(selectedFile);
+        imageUrl = uploadRes.imageUrl;
+      }
+
+      const tx = await createCampaign(publicKey, BigInt(amount), expiration);
+      
+      if (imageUrl) {
+        await api.mapCampaignImage(tx.hash, imageUrl);
+      }
+
       setMessage({ type: "success", text: "Campaign created successfully!" });
       setRewardAmount("");
+      setSelectedFile(null);
       await loadCampaigns();
     } catch (err: unknown) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to create campaign" });
@@ -89,6 +103,7 @@ export default function MerchantPage() {
               required
             />
           </div>
+          <ImageUpload onFileSelect={setSelectedFile} />
           <button type="submit" disabled={submitting || !publicKey} className="btn btn-primary">
             {submitting ? "Creating…" : "Create Campaign"}
           </button>

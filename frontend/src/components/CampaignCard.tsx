@@ -2,6 +2,7 @@
 
 import { Campaign } from "@/lib/api";
 import { useI18n } from "@/context/I18nContext";
+import Image from "next/image";
 
 interface Props {
   campaign: Campaign;
@@ -35,6 +36,21 @@ export function CampaignCard({ campaign, onClaim, claiming }: Props) {
   return (
     <div className="card" style={{ position: "relative" }}>
       <Confetti active={!!justClaimed} />
+      <div className="card-image" style={{ width: '100%', height: '160px', position: 'relative', background: 'var(--bg-input)' }}>
+        {campaign.image_url ? (
+          <Image 
+            src={campaign.image_url} 
+            alt={`Campaign #${campaign.id}`} 
+            fill 
+            style={{ objectFit: 'cover' }}
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '2rem' }}>
+            🎁
+          </div>
+        )}
+      </div>
       <div className="card-header">
         <span className="badge" data-status={statusKey}>
           {status}

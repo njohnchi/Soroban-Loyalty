@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { getCampaigns, getCampaignById, reorderCampaigns } from "../services/campaign.service";
+import { getCampaigns, getCampaignById, reorderCampaigns, saveCampaignImageMapping } from "../services/campaign.service";
+import multer from "multer";
+import { uploadImage } from "../lib/s3";
 
 export const campaignRouter = Router();
 
@@ -52,5 +54,44 @@ campaignRouter.patch("/reorder", async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to reorder campaigns" });
+  }
+});
+
+const upload = multer({
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Invalid file type. Only JPEG, PNG and WebP are allowed."));
+  }
+});
+
+/**
+ * POST /campaigns/upload
+ * Uploads an image to S3 and returns the URL.
+ */
+campaignRouter.post("/upload", upload.single("image"), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  try {
+    const imageUrl = await uploadImage(req.file.buffer, req.file.mimetype);
+    res.json({ imageUrl });
+  } catch (err) {
+    console.error("Upload failed:", err);
+    res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+/**
+ * POST /campaigns/map-image
+ * Maps a transaction hash to an image URL.
+ */
+campaignRouter.post("/map-image", async (req: Request, res: Response) => {
+  const { txHash, imageUrl } = req.body;
+  if (!txHash || !imageUrl) return res.status(400).json({ error: "txHash and imageUrl are required" });
+  try {
+    await saveCampaignImageMapping(txHash, imageUrl);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to map image" });
   }
 });

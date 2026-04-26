@@ -19,6 +19,7 @@ export interface Campaign {
   expiration: number;
   active: boolean;
   total_claimed: number;
+  image_url?: string;
 }
 
 export interface Reward {
@@ -60,4 +61,18 @@ export const api = {
     apiFetch<{ transactions: TransactionRecord[]; total: number }>(`/user/${address}/transactions?limit=${limit}&offset=${offset}`),
   getAnalytics: (days: number) =>
     apiFetch<AnalyticsData>(`/analytics?days=${days}`),
+  uploadCampaignImage: (file: File) => {
+    const formData = new FormData();
+    formData.append("image", file);
+    return apiFetch<{ imageUrl: string }>("/campaigns/upload", {
+      method: "POST",
+      body: formData,
+      headers: {}, // fetch will set the correct boundary if body is FormData
+    });
+  },
+  mapCampaignImage: (txHash: string, imageUrl: string) =>
+    apiFetch<{ ok: boolean }>("/campaigns/map-image", {
+      method: "POST",
+      body: JSON.stringify({ txHash, imageUrl }),
+    }),
 };

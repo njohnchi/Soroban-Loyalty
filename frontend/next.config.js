@@ -4,6 +4,14 @@ const withNextIntl = require('next-intl/plugin')();
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
+  },
   // Support CDN asset prefix if provided via environment variable
   assetPrefix: process.env.NEXT_PUBLIC_CDN_URL || undefined,
   env: {
