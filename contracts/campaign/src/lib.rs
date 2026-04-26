@@ -27,7 +27,7 @@ pub enum DataKey {
 // ── Events ────────────────────────────────────────────────────────────────────
 
 const CAMPAIGN_CREATED: Symbol = symbol_short!("CAM_CRT");
-const CAMPAIGN_UPDATED: Symbol = symbol_short!("CAM_UPD");
+const CAMPAIGN_DEACTIVATED: Symbol = symbol_short!("CAM_DEACT");
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -105,8 +105,12 @@ impl CampaignContract {
             .persistent()
             .set(&DataKey::Campaign(campaign_id), &campaign);
 
-        env.events()
-            .publish((CAMPAIGN_UPDATED, symbol_short!("id"), campaign_id), active);
+        if !active {
+            env.events().publish(
+                (CAMPAIGN_DEACTIVATED, symbol_short!("id"), campaign_id),
+                campaign.merchant,
+            );
+        }
     }
 
     /// Called by the rewards contract to increment the claim counter.
@@ -143,7 +147,7 @@ impl CampaignContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::{Address as _, Ledger}, Env};
+    use soroban_sdk::{testutils::{Address as _, Events, Ledger}, vec, IntoVal, Env};
 
     fn setup() -> (Env, Address, CampaignContractClient<'static>) {
         let env = Env::default();
@@ -166,6 +170,20 @@ mod tests {
         assert_eq!(c.merchant, merchant);
         assert_eq!(c.reward_amount, 100);
         assert!(c.active);
+
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events,
+            vec![
+                &env,
+                (
+                    client.address.clone(),
+                    (CAMPAIGN_CREATED, symbol_short!("id"), id).into_val(&env),
+                    merchant.into_val(&env),
+                )
+            ]
+        );
     }
 
     #[test]
@@ -173,18 +191,41 @@ mod tests {
     fn test_expired_campaign_rejected() {
         let (env, _admin, client) = setup();
         let merchant = Address::generate(&env);
-        // expiration in the past
         client.create_campaign(&merchant, &100, &0);
     }
 
     #[test]
-    fn test_set_active() {
+    fn test_set_active_emits_deactivated_event() {
         let (env, _admin, client) = setup();
         let merchant = Address::generate(&env);
         let expiry = env.ledger().timestamp() + 86400;
         let id = client.create_campaign(&merchant, &100, &expiry);
         client.set_active(&id, &false);
         assert!(!client.get_campaign(&id).active);
+
+        let events = env.events().all();
+        // events[0] = CAM_CRT, events[1] = CAM_DEACT
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events.get(1).unwrap(),
+            (
+                client.address.clone(),
+                (CAMPAIGN_DEACTIVATED, symbol_short!("id"), id).into_val(&env),
+                merchant.into_val(&env),
+            )
+        );
+    }
+
+    #[test]
+    fn test_set_active_reactivate_no_event() {
+        let (env, _admin, client) = setup();
+        let merchant = Address::generate(&env);
+        let expiry = env.ledger().timestamp() + 86400;
+        let id = client.create_campaign(&merchant, &100, &expiry);
+        client.set_active(&id, &false);
+        client.set_active(&id, &true);
+        // reactivation emits no event — only 2 total (create + deactivate)
+        assert_eq!(env.events().all().len(), 2);
     }
 
     #[test]
@@ -195,7 +236,6 @@ mod tests {
         let id = client.create_campaign(&merchant, &100, &expiry);
         assert!(client.is_active(&id));
 
-        // advance ledger past expiry
         env.ledger().with_mut(|l| l.timestamp = expiry + 1);
         assert!(!client.is_active(&id));
     }
