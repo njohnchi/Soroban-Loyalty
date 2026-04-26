@@ -9,6 +9,11 @@ import { startIndexer } from "./indexer/indexer";
 import { rpcServer } from "./soroban";
 import { pool } from "./db";
 import { registry, httpRequestsTotal, httpRequestDuration, dbPoolActive, dbPoolIdle, dbPoolWaiting } from "./metrics";
+import logger from "./logger";
+import { errorHandler } from "./middleware/errorHandler";
+import { notFoundHandler } from "./middleware/notFound";
+import { errorAlertMiddleware } from "./middleware/errorAlert";
+import { requestLogger } from "./middleware/requestLogger";
 
 // Load .env first (no-op in production where env vars are injected),
 // then fetch secrets from AWS Secrets Manager before any other init.
@@ -82,12 +87,19 @@ app.get("/health", async (_req, res) => {
   });
 });
 
+// Routes
 app.use("/campaigns", campaignRouter);
 app.use("/", rewardRouter);
 app.use("/analytics", analyticsRouter);
 
-// Global error handler — logs + alerts on unhandled errors
+// 404 handler for unmatched routes - MUST be before error handler
+app.use(notFoundHandler);
+
+// Error alert middleware
 app.use(errorAlertMiddleware);
+
+// Global error handler - MUST BE LAST
+app.use(errorHandler);
 
 // Catch unhandled promise rejections and exceptions
 process.on("unhandledRejection", (reason) => {
