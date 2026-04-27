@@ -61,17 +61,15 @@ impl TokenContract {
 
     // ── Balance helpers ───────────────────────────────────────────────────────
 
-    fn balance_of(env: &Env, addr: &Address) -> i128 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Balance(addr.clone()))
-            .unwrap_or(0)
+    // Read balance for a pre-built key, avoiding a second key construction.
+    #[inline(always)]
+    fn read_balance(env: &Env, key: &DataKey) -> i128 {
+        env.storage().persistent().get(key).unwrap_or(0)
     }
 
-    fn set_balance(env: &Env, addr: &Address, amount: i128) {
-        env.storage()
-            .persistent()
-            .set(&DataKey::Balance(addr.clone()), &amount);
+    #[inline(always)]
+    fn write_balance(env: &Env, key: &DataKey, amount: i128) {
+        env.storage().persistent().set(key, &amount);
     }
 
     fn total_supply(env: &Env) -> i128 {
@@ -108,10 +106,13 @@ impl TokenContract {
         Self::require_admin(&env);
         assert!(amount > 0, "amount must be positive");
 
-        let new_balance = Self::balance_of(&env, &to)
+        // Build key once; reuse for both read and write — avoids a second
+        // Address clone that the old balance_of/set_balance pair incurred.
+        let key = DataKey::Balance(to.clone());
+        let new_bal = Self::read_balance(&env, &key)
             .checked_add(amount)
             .expect("overflow");
-        Self::set_balance(&env, &to, new_balance);
+        Self::write_balance(&env, &key, new_bal);
 
         let new_supply = Self::total_supply(&env)
             .checked_add(amount)
@@ -126,11 +127,15 @@ impl TokenContract {
         from.require_auth();
         assert!(amount > 0, "amount must be positive");
 
-        let bal = Self::balance_of(&env, &from);
+        let key = DataKey::Balance(from.clone());
+        let bal = Self::read_balance(&env, &key);
         assert!(bal >= amount, "insufficient balance");
+        Self::write_balance(&env, &key, bal - amount);
 
-        Self::set_balance(&env, &from, bal - amount);
-        let new_supply = Self::total_supply(&env) - amount;
+        // Use checked_sub to guard against total_supply underflow.
+        let new_supply = Self::total_supply(&env)
+            .checked_sub(amount)
+            .expect("underflow");
         Self::set_total_supply(&env, new_supply);
 
         env.events()
@@ -141,14 +146,22 @@ impl TokenContract {
         from.require_auth();
         assert!(amount > 0, "amount must be positive");
 
-        let from_bal = Self::balance_of(&env, &from);
-        assert!(from_bal >= amount, "insufficient balance");
+        // Build both keys up front so each address is cloned exactly once.
+        let from_key = DataKey::Balance(from.clone());
+        let to_key = DataKey::Balance(to.clone());
 
-        Self::set_balance(&env, &from, from_bal - amount);
-        let to_bal = Self::balance_of(&env, &to)
-            .checked_add(amount)
-            .expect("overflow");
-        Self::set_balance(&env, &to, to_bal);
+        // Read both balances before writing either — keeps reads and writes
+        // clearly separated and avoids any accidental double-read.
+        let from_bal = Self::read_balance(&env, &from_key);
+        assert!(from_bal >= amount, "insufficient balance");
+        let to_bal = Self::read_balance(&env, &to_key);
+
+        Self::write_balance(&env, &from_key, from_bal - amount);
+        Self::write_balance(
+            &env,
+            &to_key,
+            to_bal.checked_add(amount).expect("overflow"),
+        );
 
         env.events()
             .publish((TRANSFER, symbol_short!("from"), from), (to, amount));
@@ -191,7 +204,7 @@ impl TokenContract {
     }
 
     pub fn balance(env: Env, addr: Address) -> i128 {
-        Self::balance_of(&env, &addr)
+        Self::read_balance(&env, &DataKey::Balance(addr))
     }
 
     pub fn total_supply_view(env: Env) -> i128 {
@@ -214,7 +227,6 @@ impl TokenContract {
         env.storage().instance().get(&DataKey::Decimals).unwrap()
     }
 
-    /// Transfer admin to a new address (two-step would be ideal in prod).
     pub fn set_admin(env: Env, new_admin: Address) {
         Self::require_admin(&env);
         env.storage().instance().set(&DataKey::Admin, &new_admin);
