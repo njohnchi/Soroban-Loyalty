@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.15.1...v1.16.0) (2026-04-27)
+
+
+### Features
+
+* **analytics:** implement A/B testing framework ([#62](https://github.com/Dev-Odun-oss/Soroban-Loyalty/issues/62)) ([84b5dcd](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/84b5dcd388dc48b1001a44de1be8eeaa87c8ba60))
+
 ## [1.15.1](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.15.0...v1.15.1) (2026-04-27)
 
 
