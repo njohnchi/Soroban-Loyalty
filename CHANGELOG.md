@@ -1,3 +1,10 @@
+## [1.15.1](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.15.0...v1.15.1) (2026-04-27)
+
+
+### Performance Improvements
+
+* optimize token transfer gas costs and add benchmarks ([21347d7](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/21347d750b92ce287579f39e4c6bcbb6e9672d7b))
+
 # [1.15.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.14.0...v1.15.0) (2026-04-27)
 
 
