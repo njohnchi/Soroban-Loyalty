@@ -10,14 +10,13 @@ import { RewardList } from "@/components/RewardList";
 import { NetworkBanner } from "@/components/NetworkBanner";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { EmptyState } from "@/components/EmptyState";
-import { SorobanErrorBoundary } from "@/components/SorobanErrorBoundary";
-import { useSorobanTransaction } from "@/hooks/useSorobanTransaction";
-import { useToast } from "@/context/ToastContext";
+import Link from "next/link";
 
 const PAGE_SIZE = 20;
 
-function DashboardPageContent() {
-  const { publicKey } = useWallet();
+export default function DashboardPage() {
+  const { publicKey, refreshBalance } = useWallet();
+  const { t } = useI18n();
   const { health } = useNetworkStatus();
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -30,31 +29,43 @@ function DashboardPageContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const networkDisabled = health.status === 'unreachable';
-
-  const loadCampaigns = useCallback(async (startOffset: number, reset = false) => {
-    if (startOffset === 0) setLoadingMore(false);
-    else setLoadingMore(true);
-    
+  const loadCampaigns = useCallback(async (currentOffset: number, initial = false) => {
+    if (loadingMore) return;
+    setLoadingMore(true);
     try {
-      const resp = await api.getCampaigns(startOffset, PAGE_SIZE);
-      if (reset) {
-        setCampaigns(resp.campaigns);
+      const r = await api.getCampaigns(PAGE_SIZE, currentOffset);
+      if (initial) {
+        setCampaigns(r.campaigns);
       } else {
-        setCampaigns(prev => [...prev, ...resp.campaigns]);
+        setCampaigns((prev) => [...prev, ...r.campaigns]);
       }
-      setTotal(resp.total);
-      setOffset(startOffset + resp.campaigns.length);
+      setTotal(r.total);
+      setOffset(currentOffset + r.campaigns.length);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load campaigns", err);
     } finally {
       setLoadingMore(false);
     }
-  }, []);
+  }, [loadingMore]);
 
-  useEffect(() => {
-    api.getCampaigns().then((r) => setCampaigns(r.campaigns)).catch(console.error);
-  }, []);
+  const networkDisabled = health.status === 'unreachable';
+
+  const loadCampaigns = useCallback(
+    async (nextOffset: number, replace = false) => {
+      setLoadingMore(true);
+      try {
+        const response = await api.getCampaigns(PAGE_SIZE, nextOffset);
+        setCampaigns((prev) => (replace ? response.campaigns : [...prev, ...response.campaigns]));
+        setOffset(nextOffset + response.campaigns.length);
+        setTotal(response.total);
+      } catch (error) {
+        console.error("Failed to load campaigns", error);
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (publicKey) {
@@ -104,9 +115,9 @@ function DashboardPageContent() {
       // Refresh rewards
       const r = await api.getUserRewards(publicKey);
       setRewards(r.rewards);
-    } catch (err: any) {
-      // Error already handled by useSorobanTransaction through toast
-      console.error("Claim failed:", err);
+      await refreshBalance();
+    } catch (err: unknown) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : t('messages.claimFailed') });
     } finally {
       setClaimingId(null);
     }
@@ -130,9 +141,9 @@ function DashboardPageContent() {
       // Refresh rewards
       const r = await api.getUserRewards(publicKey);
       setRewards(r.rewards);
-    } catch (err: any) {
-      // Error already handled by useSorobanTransaction through toast
-      console.error("Redeem failed:", err);
+      await refreshBalance();
+    } catch (err: unknown) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : t('messages.redeemFailed') });
     } finally {
       setRedeemingId(null);
     }
@@ -175,19 +186,25 @@ function DashboardPageContent() {
             ))}
           </div>
         )}
-        <div ref={sentinelRef} style={{ height: "1px" }} />
-        {loadingMore && <div style={{ textAlign: "center", padding: "1rem" }}>Loading more...</div>}
-      </div>
+      </section>
 
-      <div>
-        <h1 className="page-title">Your Rewards</h1>
-        <RewardList
-          rewards={rewards}
-          onRedeem={handleRedeem}
-          redeemingId={redeemingId}
-          disabled={networkDisabled}
-        />
-      </div>
+      {publicKey && (
+        <section style={{ marginTop: 40 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 className="section-title" style={{ marginBottom: 0 }}>{t('rewards.title')}</h2>
+            <Link href="/dashboard/history" className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>
+              View History
+            </Link>
+          </div>
+          <RewardList
+            rewards={rewards}
+            onRedeem={networkDisabled ? undefined : handleRedeem}
+            redeeming={redeemingId}
+          />
+        </section>
+      )}
+
+      {hasMore && <div ref={sentinelRef} style={{ height: 1 }} aria-hidden="true" />}
     </div>
   );
 }
