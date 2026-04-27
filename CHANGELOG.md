@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.1.0...v1.2.0) (2026-04-27)
+
+
+### Features
+
+* **campaign:** add on-chain name/description metadata ([8361fe3](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/8361fe3da0b0b63c5f48e23e4e0b14bcdfecaa26)), closes [#121](https://github.com/Dev-Odun-oss/Soroban-Loyalty/issues/121)
+
 # [1.1.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.0.0...v1.1.0) (2026-04-26)
 
 
