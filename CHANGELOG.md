@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.13.0...v1.14.0) (2026-04-27)
+
+
+### Features
+
+* add skeleton loading states to analytics page ([142e9dc](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/142e9dcdea34b385ab5b6e77d472b7c4683fc158))
+
 # [1.13.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.12.0...v1.13.0) (2026-04-27)
 
 
