@@ -96,12 +96,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const key = await connectWallet();
       setPublicKey(key);
+      toast(`Wallet connected: ${key.slice(0, 6)}...${key.slice(-4)}`, 'success');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet';
+      toast(errorMessage, 'error');
+      console.error('Wallet connection error:', error);
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [toast]);
 
-  const disconnect = useCallback(() => setPublicKey(null), []);
+  const disconnect = useCallback(() => {
+    setPublicKey(null);
+    toast('Wallet disconnected', 'info');
+  }, [toast]);
 
   return (
     <WalletContext.Provider
