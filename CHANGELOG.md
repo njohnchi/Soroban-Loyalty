@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.11.0...v1.12.0) (2026-04-27)
+
+
+### Features
+
+* **ui:** responsive navigation with mobile hamburger menu ([109ef41](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/109ef41db92f1ace79fdb3beaf6f233ac9809318)), closes [#49](https://github.com/Dev-Odun-oss/Soroban-Loyalty/issues/49)
+
 # [1.11.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.10.0...v1.11.0) (2026-04-27)
 
 
