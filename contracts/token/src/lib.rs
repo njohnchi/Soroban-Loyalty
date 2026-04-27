@@ -119,7 +119,7 @@ impl TokenContract {
         Self::set_total_supply(&env, new_supply);
 
         env.events()
-            .publish((MINT, symbol_short!("to"), to), amount);
+            .publish((MINT, symbol_short!("to"), to), (amount, new_supply));
     }
 
     pub fn burn(env: Env, from: Address, amount: i128) {
@@ -134,7 +134,7 @@ impl TokenContract {
         Self::set_total_supply(&env, new_supply);
 
         env.events()
-            .publish((BURN, symbol_short!("from"), from), amount);
+            .publish((BURN, symbol_short!("from"), from), (amount, new_supply));
     }
 
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
@@ -226,7 +226,7 @@ impl TokenContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
+    use soroban_sdk::{testutils::{Address as _, Events}, vec, IntoVal, Env};
 
     fn setup() -> (Env, Address, TokenContractClient<'static>) {
         let env = Env::default();
@@ -250,6 +250,20 @@ mod tests {
         client.mint(&user, &1000);
         assert_eq!(client.balance(&user), 1000);
         assert_eq!(client.total_supply_view(), 1000);
+
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events,
+            vec![
+                &env,
+                (
+                    client.address.clone(),
+                    (MINT, symbol_short!("to"), user).into_val(&env),
+                    (1000_i128, 1000_i128).into_val(&env),
+                )
+            ]
+        );
     }
 
     #[test]
@@ -271,6 +285,18 @@ mod tests {
         client.burn(&user, &100);
         assert_eq!(client.balance(&user), 200);
         assert_eq!(client.total_supply_view(), 200);
+
+        let events = env.events().all();
+        // events[0] = mint, events[1] = burn
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events.get(1).unwrap(),
+            (
+                client.address.clone(),
+                (BURN, symbol_short!("from"), user).into_val(&env),
+                (100_i128, 200_i128).into_val(&env),
+            )
+        );
     }
 
     #[test]

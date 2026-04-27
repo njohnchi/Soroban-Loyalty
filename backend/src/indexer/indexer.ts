@@ -174,6 +174,43 @@ async function processEvent(event: SorobanRpc.Api.RawEventResponse): Promise<voi
     logger.info(`[indexer] CampaignCreated id=${id} merchant=${merchant}`);
   }
 
+  if (event.contractId === CAMPAIGN_CONTRACT && eventName === "CAM_DEACT") {
+    // topics: [CAM_DEACT, "id", id_val], value: merchant_address
+    const id = decodeU64(topics[2]);
+    const merchant = decodeAddress(xdr.ScVal.fromXDR(event.value, "base64"));
+    await upsertCampaign({
+      id,
+      merchant,
+      reward_amount: 0,
+      expiration: 0,
+      active: false,
+      total_claimed: 0,
+      tx_hash: event.txHash,
+    });
+    await recordTransaction(event.txHash, "campaign_deactivated", merchant, id, null, event.ledger);
+    console.log(`[indexer] CampaignDeactivated id=${id} merchant=${merchant}`);
+  }
+
+  if (event.contractId === TOKEN_CONTRACT && eventName === "MINT") {
+    // topics: [MINT, "to", to_addr], value: (amount, total_supply)
+    const to = decodeAddress(topics[2]);
+    const valueVec = xdr.ScVal.fromXDR(event.value, "base64").vec()!;
+    const amount = decodeI128(valueVec[0]);
+    const totalSupply = decodeI128(valueVec[1]);
+    await recordTransaction(event.txHash, "mint", to, null, amount, event.ledger);
+    console.log(`[indexer] TokenMinted to=${to} amount=${amount} totalSupply=${totalSupply}`);
+  }
+
+  if (event.contractId === TOKEN_CONTRACT && eventName === "BURN") {
+    // topics: [BURN, "from", from_addr], value: (amount, total_supply)
+    const from = decodeAddress(topics[2]);
+    const valueVec = xdr.ScVal.fromXDR(event.value, "base64").vec()!;
+    const amount = decodeI128(valueVec[0]);
+    const totalSupply = decodeI128(valueVec[1]);
+    await recordTransaction(event.txHash, "burn", from, null, amount, event.ledger);
+    console.log(`[indexer] TokenBurned from=${from} amount=${amount} totalSupply=${totalSupply}`);
+  }
+
   if (event.contractId === REWARDS_CONTRACT && eventName === "RWD_CLM") {
     const user      = decodeAddress(topics[2]);
     const valueVec  = xdr.ScVal.fromXDR(event.value, "base64").vec()!;

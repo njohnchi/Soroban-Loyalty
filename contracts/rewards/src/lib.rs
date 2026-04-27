@@ -161,8 +161,8 @@ mod tests {
     use soroban_loyalty_campaign::CampaignContract;
     use soroban_loyalty_token::TokenContract;
     use soroban_sdk::{
-        testutils::{Address as _, Ledger},
-        Env,
+        testutils::{Address as _, Events, Ledger},
+        vec, IntoVal, Env,
     };
 
     struct TestSetup<'a> {
@@ -220,6 +220,15 @@ mod tests {
 
         assert_eq!(t.token.balance(&user), 500);
         assert!(t.rewards.has_claimed_view(&user, &cid));
+
+        // Assert RWD_CLM event emitted by rewards contract
+        let events = t.env.events().all();
+        let rwd_clm_event = events.iter().find(|(contract, _, _)| {
+            *contract == t.rewards.address
+        });
+        assert!(rwd_clm_event.is_some(), "RWD_CLM event not emitted");
+        let (_, topics, _) = rwd_clm_event.unwrap();
+        assert_eq!(topics.get(0).unwrap(), REWARD_CLAIMED.into_val(&t.env));
     }
 
     #[test]
@@ -272,6 +281,15 @@ mod tests {
 
         assert_eq!(t.token.balance(&user), 300);
         assert_eq!(t.token.total_supply_view(), 300);
+
+        // Assert RWD_RDM event emitted
+        let events = t.env.events().all();
+        let rwd_rdm_event = events.iter().rev().find(|(contract, _, _)| {
+            *contract == t.rewards.address
+        });
+        assert!(rwd_rdm_event.is_some(), "RWD_RDM event not emitted");
+        let (_, topics, _) = rwd_rdm_event.unwrap();
+        assert_eq!(topics.get(0).unwrap(), REWARD_REDEEMED.into_val(&t.env));
     }
 
     #[test]

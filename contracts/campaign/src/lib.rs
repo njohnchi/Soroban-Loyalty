@@ -31,7 +31,7 @@ pub enum DataKey {
 // ── Events ────────────────────────────────────────────────────────────────────
 
 const CAMPAIGN_CREATED: Symbol = symbol_short!("CAM_CRT");
-const CAMPAIGN_UPDATED: Symbol = symbol_short!("CAM_UPD");
+const CAMPAIGN_DEACTIVATED: Symbol = symbol_short!("CAM_DEACT");
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -118,8 +118,12 @@ impl CampaignContract {
             .persistent()
             .set(&DataKey::Campaign(campaign_id), &campaign);
 
-        env.events()
-            .publish((CAMPAIGN_UPDATED, symbol_short!("id"), campaign_id), active);
+        if !active {
+            env.events().publish(
+                (CAMPAIGN_DEACTIVATED, symbol_short!("id"), campaign_id),
+                campaign.merchant,
+            );
+        }
     }
 
     /// Called by the rewards contract to increment the claim counter.
@@ -240,13 +244,37 @@ mod tests {
     }
 
     #[test]
-    fn test_set_active() {
+    fn test_set_active_emits_deactivated_event() {
         let (env, _admin, client) = setup();
         let merchant = Address::generate(&env);
         let expiry = env.ledger().timestamp() + 86400;
         let id = client.create_campaign(&merchant, &100, &expiry, &name(&env), &desc(&env));
         client.set_active(&id, &false);
         assert!(!client.get_campaign(&id).active);
+
+        let events = env.events().all();
+        // events[0] = CAM_CRT, events[1] = CAM_DEACT
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events.get(1).unwrap(),
+            (
+                client.address.clone(),
+                (CAMPAIGN_DEACTIVATED, symbol_short!("id"), id).into_val(&env),
+                merchant.into_val(&env),
+            )
+        );
+    }
+
+    #[test]
+    fn test_set_active_reactivate_no_event() {
+        let (env, _admin, client) = setup();
+        let merchant = Address::generate(&env);
+        let expiry = env.ledger().timestamp() + 86400;
+        let id = client.create_campaign(&merchant, &100, &expiry);
+        client.set_active(&id, &false);
+        client.set_active(&id, &true);
+        // reactivation emits no event — only 2 total (create + deactivate)
+        assert_eq!(env.events().all().len(), 2);
     }
 
     #[test]
