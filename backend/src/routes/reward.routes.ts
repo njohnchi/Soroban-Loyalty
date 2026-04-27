@@ -41,10 +41,10 @@ const ClaimSchema = z.object({
  *       500:
  *         description: Server error.
  */
-rewardRouter.get("/user/:address/rewards", async (req: Request, res: Response) => {
+rewardRouter.get("/user/:address/rewards", asyncHandler(async (req: Request, res: Response) => {
   const { address } = req.params;
   if (!address || address.length !== 56) {
-    return res.status(400).json({ error: "Invalid Stellar address" });
+    throw new BadRequestError("Invalid Stellar address", { address });
   }
   try {
     const rewards = await getRewardsByUser(address);
