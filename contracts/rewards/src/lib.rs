@@ -29,6 +29,7 @@ mod campaign {
         pub merchant: Address,
         pub reward_amount: i128,
         pub expiration: u64,
+        pub created_at: u64,
         pub active: bool,
         pub total_claimed: u64,
     }
@@ -107,6 +108,19 @@ impl RewardsContract {
             .has(&DataKey::Claimed(user.clone(), campaign_id))
     }
 
+    /// Returns multiplier in basis points (10000 = 1x, 20000 = 2x).
+    /// Formula: 1 + (expires_at - now) / (expires_at - created_at), capped [1x, 2x].
+    fn calc_multiplier(now: u64, created_at: u64, expires_at: u64) -> u64 {
+        if now >= expires_at || expires_at <= created_at {
+            return 10_000;
+        }
+        let duration = expires_at - created_at;
+        let remaining = expires_at - now;
+        // multiplier_bp = 10000 + 10000 * remaining / duration, capped at 20000
+        let extra = 10_000u64 * remaining / duration;
+        10_000 + extra.min(10_000)
+    }
+
     pub fn claim_reward(env: Env, user: Address, campaign_id: u64) {
         user.require_auth();
 
@@ -129,12 +143,19 @@ impl RewardsContract {
             .persistent()
             .set(&DataKey::Claimed(user.clone(), campaign_id), &true);
 
+        let multiplier_bp = Self::calc_multiplier(
+            env.ledger().timestamp(),
+            campaign.created_at,
+            campaign.expiration,
+        );
+        let final_amount = (campaign.reward_amount * multiplier_bp as i128) / 10_000;
+
         campaign_client.record_claim(&campaign_id);
-        Self::token_client(&env).mint(&user, &campaign.reward_amount);
+        Self::token_client(&env).mint(&user, &final_amount);
 
         env.events().publish(
             (REWARD_CLAIMED, symbol_short!("user"), user.clone()),
-            (campaign_id, campaign.reward_amount),
+            (campaign_id, final_amount, multiplier_bp),
         );
     }
 
@@ -220,7 +241,8 @@ mod tests {
         let cid = make_campaign(&t, &merchant, 500);
         t.rewards.claim_reward(&user, &cid);
 
-        assert_eq!(t.token.balance(&user), 500);
+        // At t=0 (start), multiplier is 2x → 500 * 2 = 1000
+        assert_eq!(t.token.balance(&user), 1000);
         assert!(t.rewards.has_claimed_view(&user, &cid));
 
         // Assert RWD_CLM event emitted by rewards contract
@@ -279,6 +301,7 @@ mod tests {
 
         let cid = make_campaign(&t, &merchant, 500);
         t.rewards.claim_reward(&user, &cid);
+        // Claimed at start → 2x → 1000 minted; redeem 200 → 800 remaining
         t.rewards.redeem_reward(&user, &200);
 
         assert_eq!(t.token.balance(&user), 300);
