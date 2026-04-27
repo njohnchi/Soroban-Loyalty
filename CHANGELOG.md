@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.9.0...v1.10.0) (2026-04-27)
+
+
+### Features
+
+* **ui:** global search with command palette (Cmd/Ctrl+K) ([74b5cdb](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/74b5cdb3343dee988b40e3857c06f3671a480855)), closes [#53](https://github.com/Dev-Odun-oss/Soroban-Loyalty/issues/53)
+
 # [1.9.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.8.0...v1.9.0) (2026-04-27)
 
 
