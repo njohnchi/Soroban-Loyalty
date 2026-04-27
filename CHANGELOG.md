@@ -1,3 +1,15 @@
+# [1.8.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.7.0...v1.8.0) (2026-04-27)
+
+
+### Bug Fixes
+
+* **ui:** define z-index scale and fix stacking issues ([#63](https://github.com/Dev-Odun-oss/Soroban-Loyalty/issues/63)) ([319bafd](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/319bafd95710b1222114d26e8b53e0f4354c0242))
+
+
+### Features
+
+* implement contract upgrade mechanism with timelock and multi-sig ([6593926](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/65939269383b2e38cc7687d479e89b441b25f32a))
+
 # [1.7.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.6.0...v1.7.0) (2026-04-27)
 
 
