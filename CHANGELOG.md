@@ -1,3 +1,10 @@
+## [1.21.1](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.21.0...v1.21.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* add database indexes for frequently queried columns ([5a96ade](https://github.com/Dev-Odun-oss/Soroban-Loyalty/commit/5a96ade3b8adfcc32e93793acf26aa78471f5327))
+
 # [1.21.0](https://github.com/Dev-Odun-oss/Soroban-Loyalty/compare/v1.20.0...v1.21.0) (2026-04-28)
 
 
