@@ -32,6 +32,7 @@ mod campaign {
         pub created_at: u64,
         pub active: bool,
         pub total_claimed: u64,
+        pub vesting_period_days: u32,
     }
 
     #[contractclient(name = "CampaignClient")]
@@ -52,12 +53,30 @@ pub enum DataKey {
     TokenContract,
     CampaignContract,
     Admin,
+    /// Vesting state for (user, campaign_id)
+    Vesting(Address, u64),
+}
+
+// ── Vesting state ─────────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone)]
+pub struct VestingState {
+    /// Total amount locked in vesting
+    pub total_amount: i128,
+    /// Amount already claimed from vesting
+    pub claimed_amount: i128,
+    /// Unix timestamp when vesting started (= claim time)
+    pub start_time: u64,
+    /// Vesting duration in seconds
+    pub vesting_duration_secs: u64,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
 const REWARD_CLAIMED: Symbol = symbol_short!("RWD_CLM");
 const REWARD_REDEEMED: Symbol = symbol_short!("RWD_RDM");
+const VESTED_CLAIMED: Symbol = symbol_short!("VST_CLM");
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -151,12 +170,72 @@ impl RewardsContract {
         let final_amount = (campaign.reward_amount * multiplier_bp as i128) / 10_000;
 
         campaign_client.record_claim(&campaign_id);
-        Self::token_client(&env).mint(&user, &final_amount);
+
+        if campaign.vesting_period_days == 0 {
+            // No vesting — mint immediately
+            Self::token_client(&env).mint(&user, &final_amount);
+        } else {
+            // Lock in vesting — do NOT mint yet; mint on each claim_vested call
+            let vesting_duration_secs = campaign.vesting_period_days as u64 * 86_400;
+            let vesting = VestingState {
+                total_amount: final_amount,
+                claimed_amount: 0,
+                start_time: env.ledger().timestamp(),
+                vesting_duration_secs,
+            };
+            env.storage()
+                .persistent()
+                .set(&DataKey::Vesting(user.clone(), campaign_id), &vesting);
+        }
 
         env.events().publish(
             (REWARD_CLAIMED, symbol_short!("user"), user.clone()),
             (campaign_id, final_amount, multiplier_bp),
         );
+    }
+
+    /// Claim the currently vested portion of a locked reward.
+    /// Linear vesting: vested = total * elapsed / duration.
+    /// Can be called multiple times; each call mints only the newly vested amount.
+    pub fn claim_vested(env: Env, user: Address, campaign_id: u64) {
+        user.require_auth();
+
+        let mut vesting: VestingState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Vesting(user.clone(), campaign_id))
+            .expect("no vesting schedule found");
+
+        let now = env.ledger().timestamp();
+        let elapsed = now.saturating_sub(vesting.start_time);
+        let vested_total = if elapsed >= vesting.vesting_duration_secs {
+            vesting.total_amount
+        } else {
+            (vesting.total_amount * elapsed as i128) / vesting.vesting_duration_secs as i128
+        };
+
+        let claimable = vested_total - vesting.claimed_amount;
+        assert!(claimable > 0, "nothing to claim yet");
+
+        vesting.claimed_amount = vested_total;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Vesting(user.clone(), campaign_id), &vesting);
+
+        Self::token_client(&env).mint(&user, &claimable);
+
+        env.events().publish(
+            (VESTED_CLAIMED, symbol_short!("user"), user),
+            (campaign_id, claimable, vesting.total_amount),
+        );
+    }
+
+    /// View the current vesting state for a user/campaign pair.
+    pub fn vesting_state(env: Env, user: Address, campaign_id: u64) -> VestingState {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Vesting(user, campaign_id))
+            .expect("no vesting schedule found")
     }
 
     pub fn redeem_reward(env: Env, user: Address, amount: i128) {
@@ -229,7 +308,14 @@ mod tests {
         let expiry = t.env.ledger().timestamp() + 86400;
         let name = soroban_sdk::Bytes::from_slice(&t.env, b"Test Campaign");
         let desc = soroban_sdk::Bytes::from_slice(&t.env, b"Test description");
-        t.campaign.create_campaign(merchant, &reward, &expiry, &name, &desc)
+        t.campaign.create_campaign(merchant, &reward, &expiry, &name, &desc, &0)
+    }
+
+    fn make_vesting_campaign(t: &TestSetup, merchant: &Address, reward: i128, vesting_days: u32) -> u64 {
+        let expiry = t.env.ledger().timestamp() + 86400;
+        let name = soroban_sdk::Bytes::from_slice(&t.env, b"Vesting Campaign");
+        let desc = soroban_sdk::Bytes::from_slice(&t.env, b"Vesting test");
+        t.campaign.create_campaign(merchant, &reward, &expiry, &name, &desc, &vesting_days)
     }
 
     #[test]
@@ -288,7 +374,7 @@ mod tests {
         let expiry = t.env.ledger().timestamp() + 10;
         let name = soroban_sdk::Bytes::from_slice(&t.env, b"Test Campaign");
         let desc = soroban_sdk::Bytes::from_slice(&t.env, b"Test description");
-        let cid = t.campaign.create_campaign(&merchant, &500, &expiry, &name, &desc);
+        let cid = t.campaign.create_campaign(&merchant, &500, &expiry, &name, &desc, &0);
         t.env.ledger().with_mut(|l| l.timestamp = expiry + 1);
         t.rewards.claim_reward(&user, &cid);
     }
@@ -328,6 +414,107 @@ mod tests {
         t.rewards.claim_reward(&user1, &cid);
         t.rewards.claim_reward(&user2, &cid);
 
+        assert_eq!(t.token.balance(&user1), 100);
+        assert_eq!(t.token.balance(&user2), 100);
+        assert_eq!(t.token.total_supply_view(), 200);
+    }
+
+    // ── Vesting Tests (Issue #128) ────────────────────────────────────────────
+
+    #[test]
+    fn test_no_vesting_mints_immediately() {
+        let t = setup();
+        let merchant = Address::generate(&t.env);
+        let user = Address::generate(&t.env);
+
+        let cid = make_campaign(&t, &merchant, 1000); // vesting_period_days = 0
+        t.rewards.claim_reward(&user, &cid);
+
+        // Tokens minted immediately (2x multiplier at t=0)
+        assert_eq!(t.token.balance(&user), 2000);
+    }
+
+    #[test]
+    fn test_vesting_locks_tokens_on_claim() {
+        let t = setup();
+        let merchant = Address::generate(&t.env);
+        let user = Address::generate(&t.env);
+
+        // 10-day vesting campaign
+        let cid = make_vesting_campaign(&t, &merchant, 1000, 10);
+        t.rewards.claim_reward(&user, &cid);
+
+        // No tokens minted yet — locked in vesting
+        assert_eq!(t.token.balance(&user), 0);
+
+        // Vesting state recorded
+        let vs = t.rewards.vesting_state(&user, &cid);
+        assert_eq!(vs.claimed_amount, 0);
+        assert!(vs.total_amount > 0);
+    }
+
+    #[test]
+    fn test_partial_vesting_claim() {
+        let t = setup();
+        let merchant = Address::generate(&t.env);
+        let user = Address::generate(&t.env);
+
+        // 10-day vesting; advance 5 days → 50% vested
+        let cid = make_vesting_campaign(&t, &merchant, 1000, 10);
+        t.rewards.claim_reward(&user, &cid);
+
+        let vs = t.rewards.vesting_state(&user, &cid);
+        let total = vs.total_amount;
+
+        // Advance 5 days (50% of 10-day period)
+        t.env.ledger().with_mut(|l| l.timestamp += 5 * 86_400);
+        t.rewards.claim_vested(&user, &cid);
+
+        // ~50% minted
+        let expected = total / 2;
+        assert_eq!(t.token.balance(&user), expected);
+
+        let vs2 = t.rewards.vesting_state(&user, &cid);
+        assert_eq!(vs2.claimed_amount, expected);
+    }
+
+    #[test]
+    fn test_full_vesting_after_period() {
+        let t = setup();
+        let merchant = Address::generate(&t.env);
+        let user = Address::generate(&t.env);
+
+        let cid = make_vesting_campaign(&t, &merchant, 1000, 10);
+        t.rewards.claim_reward(&user, &cid);
+
+        let vs = t.rewards.vesting_state(&user, &cid);
+        let total = vs.total_amount;
+
+        // Advance past full vesting period
+        t.env.ledger().with_mut(|l| l.timestamp += 11 * 86_400);
+        t.rewards.claim_vested(&user, &cid);
+
+        // 100% minted
+        assert_eq!(t.token.balance(&user), total);
+
+        let vs2 = t.rewards.vesting_state(&user, &cid);
+        assert_eq!(vs2.claimed_amount, total);
+    }
+
+    #[test]
+    #[should_panic(expected = "nothing to claim yet")]
+    fn test_claim_vested_before_any_vesting() {
+        let t = setup();
+        let merchant = Address::generate(&t.env);
+        let user = Address::generate(&t.env);
+
+        let cid = make_vesting_campaign(&t, &merchant, 1000, 10);
+        t.rewards.claim_reward(&user, &cid);
+
+        // Immediately try to claim — 0 seconds elapsed → 0 vested
+        t.rewards.claim_vested(&user, &cid);
+    }
+
     // ── Integration Tests (Issue #127) ───────────────────────────────────────
 
     /// Flow 1: The Claim Loop - End-to-end reward claiming integration test
@@ -340,7 +527,7 @@ mod tests {
         let expiry = t.env.ledger().timestamp() + 86400; // 24 hours
 
         // 1. Create active campaign
-        let campaign_id = t.campaign.create_campaign(&merchant, &reward_amount, &expiry);
+        let campaign_id = t.campaign.create_campaign(&merchant, &reward_amount, &expiry, &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &0);
         assert!(t.campaign.is_active(&campaign_id));
 
         // 2. User claims reward
@@ -365,7 +552,7 @@ mod tests {
         let expiry = t.env.ledger().timestamp() + 86400;
 
         // Setup: User has claimed rewards
-        let campaign_id = t.campaign.create_campaign(&merchant, &reward_amount, &expiry);
+        let campaign_id = t.campaign.create_campaign(&merchant, &reward_amount, &expiry, &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &0);
         t.rewards.claim_reward(&user, &campaign_id);
         
         // Verify initial balance from claim
@@ -391,8 +578,8 @@ mod tests {
         let expiry = t.env.ledger().timestamp() + 86400;
 
         // Create two campaigns with different reward amounts
-        let campaign1_id = t.campaign.create_campaign(&merchant1, &100, &expiry);
-        let campaign2_id = t.campaign.create_campaign(&merchant2, &200, &expiry);
+        let campaign1_id = t.campaign.create_campaign(&merchant1, &100, &expiry, &soroban_sdk::Bytes::from_slice(&t.env, b"C1"), &soroban_sdk::Bytes::from_slice(&t.env, b"C1"), &0);
+        let campaign2_id = t.campaign.create_campaign(&merchant2, &200, &expiry, &soroban_sdk::Bytes::from_slice(&t.env, b"C2"), &soroban_sdk::Bytes::from_slice(&t.env, b"C2"), &0);
 
         // User1 claims from both campaigns
         t.rewards.claim_reward(&user1, &campaign1_id);
@@ -427,7 +614,7 @@ mod tests {
         let user2 = Address::generate(&t.env);
         let short_expiry = t.env.ledger().timestamp() + 10; // Short expiry
 
-        let campaign_id = t.campaign.create_campaign(&merchant, &500, &short_expiry);
+        let campaign_id = t.campaign.create_campaign(&merchant, &500, &short_expiry, &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &0);
         
         // User1 claims before expiry - should succeed
         t.rewards.claim_reward(&user1, &campaign_id);
@@ -455,7 +642,7 @@ mod tests {
         let user = Address::generate(&t.env);
         let expiry = t.env.ledger().timestamp() + 86400;
 
-        let campaign_id = t.campaign.create_campaign(&merchant, &500, &expiry);
+        let campaign_id = t.campaign.create_campaign(&merchant, &500, &expiry, &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &soroban_sdk::Bytes::from_slice(&t.env, b"Test"), &0);
         
         // Deactivate campaign via campaign contract
         t.campaign.set_active(&campaign_id, &false);
@@ -470,9 +657,5 @@ mod tests {
         assert_eq!(t.token.balance(&user), 0);
         assert_eq!(t.token.total_supply_view(), 0);
         assert!(!t.rewards.has_claimed_view(&user, &campaign_id));
-    }
-        assert_eq!(t.token.balance(&user1), 100);
-        assert_eq!(t.token.balance(&user2), 100);
-        assert_eq!(t.token.total_supply_view(), 200);
     }
 }
